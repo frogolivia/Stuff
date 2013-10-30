@@ -1,0 +1,328 @@
+#####################################################################
+####################    Read in the Data      #######################
+#####################################################################
+setwd("D:/STA250/HW1")
+temp=read.csv("blr_data_1001.csv")
+
+
+beta.0=matrix(c(0,0))
+Sigma.0.inv=diag(2)
+
+post = function(m,y,X,beta,beta.0,Sigma.0.inv){        #Log scale posterior dist where dim(theta) is 2*1  
+	(sum(t(y)%*%X%*%beta-t(m)%*%log(1+exp(X%*%beta)))-1/2*(t(beta-beta.0)%*%Sigma.0.inv%*%(beta-beta.0)))
+	}
+
+
+bayes.logreg = function(m,y,X,beta.0,Sigma.0.inv,niter=10000,burnin=1000,      ### MCMC function start
+				print.every=1000,retune=100,verbose=TRUE){
+	theta=matrix(nrow=(niter+burnin+1),ncol=2)
+	theta[1,]=beta.0                       					#I set the beta.0 as initial value
+	prop.var=Sigma.0.inv                   					#Sigma.0.inv as the started proposal variance
+		for (i in 2:(burnin+1)){
+			theta_star=matrix(mvrnorm(1,theta[(i-1),],prop.var))    
+			u=log(runif(1))
+			alpha=(post(m,y,X,theta_star,beta.0,Sigma.0.inv))-(post(m,y,X,theta[i-1,],beta.0,Sigma.0.inv))
+				if (u>alpha){theta[i,]=theta[i-1,];ac=ac
+					}else {theta[i,]=theta_star;ac=ac+1
+					}
+				if (i%%retune==1){  #100´«retune
+					W=ac/retune ; new.cov=cov(theta[(i-99):i,]);prop.var=W*new.cov+(1-W)*prop.var
+					if (W < 0.5) {prop.var=prop.var/2}
+					print(list(paste("acceptance rate=",W," ; beta1=",theta[i,1]," ; beta2=",theta[i,2],sep=""),prop.var));ac=0
+					}					
+			}
+		for (i in (burnin+2):(niter+burnin+1)){
+			theta_star=matrix(mvrnorm(1,theta[(i-1),],prop.var))
+			u=log(runif(1))
+			alpha=(post(m,y,X,theta_star,beta.0,Sigma.0.inv)-post(m,y,X,theta[i-1,],beta.0,Sigma.0.inv))
+				if (u>alpha){theta[i,]=theta[i-1,];ac=ac
+					}else {theta[i,]=theta_star;ac=ac+1
+				}
+				if (i%%print.every==1){   #1000 rep print.every
+					print(paste("acceptance rate=", ac/print.every, " ; beta1=",theta[i,1]," ; beta2=",theta[i,2],sep=""));ac=0
+				}
+			}
+		quant_beta=cbind(quantile(theta[(burnin+2):(niter+burnin+1),1],seq(1:99)/100),quantile(theta[(burnin+2):(niter+burnin+1),2],seq(1:99)/100))
+		credit_int1=quantile(theta[(burnin+2):(niter+burnin+1),1],c(0.025,0.975))
+		credit_int2=quantile(theta[(burnin+2):(niter+burnin+1),2],c(0.025,0.975))
+		return(list(credit_int1,credit_int2))
+	}									   	   	    ###MCMC end
+
+############################################################################################
+################       2D varify by credible interval coverage percent      ################
+############################################################################################
+m=matrix(temp[,2])
+test_theta=mvrnorm(200,beta.0,Sigma.0.inv)
+logit_inv=function(x){exp(x)/(1+exp(x))}
+CP1=0 ; CP2=0 ; Both=0
+for (j in 1:200){
+	newy=matrix(nrow=100,ncol=1)
+		for (i in 1:100){
+			newy[i]=sum(rbind(rbinom(temp[i,2] , 1 , logit_inv(as.matrix(temp[i,3:4])%*%as.matrix(test_theta[j,],2,1)))))}
+			CI=bayes.logreg(as.matrix(temp[,2]),newy,as.matrix(temp[,3:4],100,2),beta.0,Sigma.0.inv)
+			print(paste("Prioir beta1 : ", test_theta[j,1]," Prioir beta2 : ", test_theta[j,2],sep=""))
+				if (findInterval(test_theta[j,1],CI[[1]])==1){
+						CP1=CP1+1
+					}
+				if (findInterval(test_theta[j,2],CI[[2]])==1){
+						CP2=CP2+1
+					}
+				if (findInterval(test_theta[j,1],CI[[1]])==1 & findInterval(test_theta[j,2],CI[[2]])==1){
+						Both=Both+1
+					}
+				print(paste(CP1,CP2,Both,sep=" "))
+			}
+
+##########################################################################################
+###########################           Trace Plot             #############################
+##########################################################################################
+plot(theta[,1],type="l",main="Traceplot",ylab="Beta",xlab="Iter",ylim=c(min(theta[,1],theta[,2]),max(theta[,1],theta[,2])))
+lines(theta[,2],col="red")
+legend("topright",c("beta1","beta2"),col=c("black","red"),lty=c(1,1))
+
+#########################################################################################################
+######################  CODES RUN ON GAUSS (Copy from BLR_fit.R)   ######################################
+#########################################################################################################
+
+
+##
+#
+# Logistic regression
+# 
+# Y_{i} | \beta \sim \textrm{Bin}\left(n_{i},e^{x_{i}^{T}\beta}/(1+e^{x_{i}^{T}\beta})\right)
+# \beta \sim N\left(\beta_{0},\Sigma_{0}\right)
+#
+##
+
+library(mvtnorm)
+library(coda)
+library(MASS)
+
+########################################################################################
+########################################################################################
+## Handle batch job arguments:
+
+# 1-indexed version is used now.
+args <- commandArgs(TRUE)
+
+cat(paste0("Command-line arguments:\n"))
+print(args)
+
+####
+# sim_start ==> Lowest simulation number to be analyzed by this particular batch job
+###
+
+#######################
+sim_start <- 1000
+length.datasets <- 200
+#######################
+
+if (length(args)==0){
+  sinkit <- FALSE
+  sim_num <- sim_start + 1
+  set.seed(1330931)
+} else {
+  # Sink output to file?
+  sinkit <- TRUE
+  # Decide on the job number, usually start at 1000:
+  sim_num <- sim_start + as.numeric(args[1])
+  # Set a different random seed for every job number!!!
+  set.seed(762*sim_num + 1330931)
+}
+
+# Simulation datasets numbered 1001-1200
+
+########################################################################################
+########################################################################################
+
+
+post = function(m,y,X,beta,beta.0,Sigma.0.inv){        #theta is 2*1   take log scale
+	(sum(t(y)%*%X%*%beta-t(m)%*%log(1+exp(X%*%beta)))-1/2*(t(beta-beta.0)%*%Sigma.0.inv%*%(beta-beta.0)))}
+
+
+
+"bayes.logreg" <- function(m,y,X,beta.0,Sigma.0.inv,niter=10000,burnin=1000,
+                           print.every=1000,retune=100,verbose=TRUE)
+{		theta=matrix(nrow=(niter+burnin+1),ncol=2)
+		theta[1,]=beta.0
+		prop.var=Sigma.0.inv
+		ac=0
+		for (i in 2:(burnin+1)){
+			theta_star=matrix(mvrnorm(1,theta[(i-1),],prop.var))    
+			u=log(runif(1))
+			alpha=(post(m,y,X,theta_star,beta.0,Sigma.0.inv))-(post(m,y,X,theta[i-1,],beta.0,Sigma.0.inv))
+				if (u>alpha){theta[i,]=theta[i-1,];ac=ac
+					}else {theta[i,]=theta_star;ac=ac+1}
+				if (i%%retune==1){  #100 rep retune
+					W=ac/retune ; new.cov=cov(theta[(i-99):i,]);prop.var=W*new.cov+(1-W)*prop.var
+					if (W < 0.5) {prop.var=prop.var/2}
+					print(list(paste("acceptance rate=",W," ; beta1=",theta[i,1]," ; beta2=",theta[i,2],sep=""),prop.var));ac=0
+					}					
+			}
+		for (i in (burnin+2):(niter+burnin+1)){
+			theta_star=matrix(mvrnorm(1,theta[(i-1),],prop.var))
+			u=log(runif(1))
+			alpha=(post(m,y,X,theta_star,beta.0,Sigma.0.inv)-post(m,y,X,theta[i-1,],beta.0,Sigma.0.inv))
+				if (u>alpha){theta[i,]=theta[i-1,];ac=ac
+					}else {theta[i,]=theta_star;ac=ac+1}
+				if (i%%print.every==1){   #1000 rep print.every
+					print(paste("acceptance rate=", ac/print.every, " ; beta1=",theta[i,1]," ; beta2=",theta[i,2],sep=""));ac=0
+				}
+			}
+	
+	quant_beta=cbind(quantile(theta[(burnin+2):(niter+burnin+1),1],seq(1:99)/100),quantile(theta[(burnin+2):(niter+burnin+1),2],seq(1:99)/100))
+	credit_int1=quantile(theta[(burnin+2):(niter+burnin+1),1],c(0.025,0.975))
+	credit_int2=quantile(theta[(burnin+2):(niter+burnin+1),2],c(0.025,0.975))
+	return(list(Quantilematrix=quant_beta,CredibleInterval_1=credit_int1, CredibleInterval_2=credit_int2))
+}									
+
+
+#################################################
+# Set up the specifications:
+p=2
+beta.0 <- matrix(c(0,0))
+Sigma.0.inv <- diag(rep(1.0,p))
+niter <- 10000
+burnin=1000
+print.every=1000
+retune=100
+#################################################
+
+# Read data corresponding to appropriate sim_num:
+temp=read.csv(file.path("data",paste("blr_data_",sim_num,".csv",sep="")),header=T)
+
+# Extract X and y:
+X=as.matrix(temp[,3:4],100,2)
+y=as.matrix(temp[,1],100,1)
+m=as.matrix(temp[,2],100,1)
+# Fit the Bayesian model:
+BL=bayes.logreg(m=m,y=y,X=X,beta.0,Sigma.0.inv,niter=10000,burnin=1000,print.every=1000,retune=100)
+# Extract posterior quantiles...
+post_quantile=BL$Quantilematrix
+
+# Write results to a (99 x p) csv file...
+write.table(data.frame(post_quantile),file=paste("results/blr_res_",sim_num,".csv",sep=""),sep=",",quote=FALSE,col.name=F,row.names=F)
+
+# Go celebrate.
+ 
+cat("done. :)\n")
+
+
+#########################################################################################################
+#####################################         Problem 3            ######################################
+#########################################################################################################
+bc=read.table("breast_cancer.txt",header=T)
+y=rep(0,dim(bc)[1])
+y[which(bc[,11]=="M")]=1
+
+### Standardlize the covariates of X #### 
+X = cbind(rep(1,dim(bc)[1]),as.matrix(bc[,1:10]))
+for (i in 2:11){ m.X = mean(X[,i]); sd.X = sd(X[,i]) ; X[,i] = (X[,i]-m.X)/sd.X }
+
+
+post = function(m,y,X,beta,beta.0,Sigma.0.inv){      #posterior dist in log scale
+	(sum(y*(X%*%beta)-m*log(1+exp(X%*%beta)))-1/2*(t(beta-beta.0)%*%solve(Sigma.0.inv)%*%(beta-beta.0)))}
+beta.0=matrix(rep(0,11),11,1)
+Sigma.0.inv=1000*diag(11)
+m=as.matrix(rep(1,dim(bc)[1]))
+y=as.matrix(y,dim(bc)[1],1)
+
+
+############################################################################################################################################
+bayes.logreg = function(m,y,X,beta.0,Sigma.0.inv,niter=10000,burnin=1000,      			 ### MCMC function start
+				print.every=1000,retune=100,verbose=TRUE,beta_int){
+	theta=matrix(nrow=(niter+burnin+1),ncol=11)
+	ac=0
+	theta[1,]=beta_int
+	prop.var=solve(Sigma.0.inv)
+		for (i in 2:(burnin+1)){
+			theta_star=matrix(mvrnorm(1,theta[(i-1),],prop.var))    
+			u=log(runif(1))
+			alpha=(post(m,y,X,theta_star,beta.0,Sigma.0.inv))-(post(m,y,X,theta[i-1,],beta.0,Sigma.0.inv))
+				if (u>alpha){theta[i,]=theta[i-1,];ac=ac
+					}else {theta[i,]=theta_star;ac=ac+1}
+				if (i%%retune==1){  #100 rep retune
+					W=ac/retune ; new.cov=cov(theta[(i-99):i,]);prop.var=W*new.cov+(1-W)*prop.var
+					if (W < 0.5) {prop.var=prop.var/2}
+					print(list(paste("acceptance rate=",W," ; beta1=",theta[i,1]," ; beta2=",theta[i,2],sep=""),prop.var));ac=0
+					}					
+			}
+		for (i in (burnin+2):(niter+burnin+1)){
+			theta_star=matrix(mvrnorm(1,theta[(i-1),],prop.var))
+			u=log(runif(1))
+			alpha=(post(m,y,X,theta_star,beta.0,Sigma.0.inv)-post(m,y,X,theta[i-1,],beta.0,Sigma.0.inv))
+				if (u>alpha){theta[i,]=theta[i-1,];ac=ac
+					}else {theta[i,]=theta_star;ac=ac+1}
+				if (i%%print.every==1){   #1000 rep print.every
+					print(paste("acceptance rate=", ac/print.every, " ; beta1=",theta[i,1]," ; beta2=",theta[i,2],sep=""));ac=0
+				}
+			}
+	return(list(beta_matrix=theta,cov_matrix=prop.var))
+}
+
+################################################################################################################
+####### Run the glm on the data to get the estimators and the corresponding variance-covariance matrix  ########
+####### for initial state value as well as proposal variance of posterior distribution.                 ########       
+################################################################################################################
+
+runglm=data.frame(y,X[,2:11])
+model=glm(runglm[,1]~runglm[,2]+runglm[,3]+runglm[,4]+runglm[,5]+runglm[,6]+runglm[,7]+runglm[,8]+runglm[,9]+runglm[,10]+runglm[,11],data=runglm,family=binomial())
+pv=summary(model)$cov.unscale
+ls_int=summary(model)$coefficients[,1]
+
+BL=bayes.logreg(m=m,y=y,X=X,beta.0,Sigma.0.inv=pv,niter=200000,burnin=10000,beta_int=ls_int)$beta_matrix  
+
+#################################################################
+#####  TRACE PLOT - to see how good the MCMC performance   ######
+#################################################################
+vb=c("intercept",names(bc)[1:10])
+par(mfrow=c(3,4))
+	for (i in 1:11){
+		plot(BL[,i],type="l",main=vb[i])
+	}
+
+################################################################################################
+##############    Check if the covariate relates to the cancer diagonosis    ###################
+################################################################################################
+
+ci=matrix(nrow=11,ncol=2)              #95% C.I. for each beta
+	for (i in 1:11){
+		ci[i,]=quantile(BL[(10002:210001),i],c(0.025,0.975))
+	}
+
+relat=matrix()                         #see if the 0 is included in the interval  
+	for (i in 1:11){			          0 is included means no relation to cancer diagonosis
+		relat[i]=findInterval(0,ci[i,])
+	}
+
+
+################################################################################################
+#####################        Calculate the lag-1 autocorrelation    ############################          
+################################################################################################
+ac=matrix()
+	for (i in 1:11){
+		ac[i]=acf(BL[,i],lag=1,plot=F)$acf[2]
+	}
+
+
+#############################################################################################
+###################        Perform the posterior predictive check         ###################
+#############################################################################################
+newtheta=BL[210001,]
+newp=logit_inv(as.matrix(X[,1:11])%*%newtheta)
+
+newdataset=matrix(nrow=569,ncol=200)     #generate new dataset
+	for (j in 1:200){
+		for (i in 1:569){
+			newdataset[i,j]=rbinom(1,1,newp[i])
+		}
+	}
+allmean=colSums(newdataset)/569         #calculate the mean of each newdata set
+
+###make a plot to compare the result
+plot(density(allmean),main="Posterior predictice check(mean)",ylab="P(xbar)", xlab="xbar")    
+abline(v=mean(y),col="red")
+
+
+
+
