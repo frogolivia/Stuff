@@ -42,8 +42,9 @@ s_index=ceiling((sim_num-1000)/50)
 r_index=sim_num%%50            
 		# returns a result of of remainder of sim_num/50
 		# for 1:250%%50 returns 1,2,...,49,0,1,2,...,49,0,....
+		# what I exptec for r_index is 1,2,...,49,50,1,2,....,49,50,1,2,.....
 r_index[which(r_index==0)]=50   
-		# change those value of 0 into 50
+		# Thus I change those value of 0 into 50
 #============================== Run the simulation study ==============================#
 
 # Load packages:
