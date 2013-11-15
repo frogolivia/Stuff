@@ -105,10 +105,11 @@ write.table(beta,file=outfile,row.name=FALSE)
 import sys
 from math import floor, ceil
 for line in sys.stdin:
-    numbers = map(float, line.split())
-    x = numbers[0] * 10
-    y = numbers[1] * 10
-    word = str(ceil(x) / 10) + '_' + str(ceil(y) / 10)
+    numbers = map(float, line.split())       #split each element by " ", and change into float
+    x = numbers[0] * 10    # since ceil is integer-base, so I multiply x-cor by 10.
+    y = numbers[1] * 10    # do the same thing to y-cor
+    word = str(ceil(x) / 10) + '_' + str(ceil(y) / 10)   #divided the ceiling result by 10 and use
+    							 # "_" to connect x_upper bound and y_upper bound
     print '%s\t%s' % (word, 1)
 
 ###########################
@@ -125,10 +126,10 @@ current_count = 0
 word = None
 
 for line in sys.stdin:
-    line = line.strip()
-    chopped = line.split()
-    word = chopped[0]
-    count = chopped[1]
+    line = line.strip()       #remove leadibg abd trailing whitespace
+    chopped = line.split()    #separate the key and the value
+    word = chopped[0]         #key
+    count = chopped[1]        #value
     try:
         count = int(count)
     except ValueError:
@@ -142,10 +143,10 @@ for line in sys.stdin:
             bound = str.partition(current_word, "_")     ## String split by "_"
             x_up = str(bound[0])
             y_up = str(bound[2])
-            x_low = str(float(x_up) - 0.1)
-            y_low = str(float(y_up) - 0.1)
+            x_low = str(float(x_up) - 0.1)       #find the x_lower bound
+            y_low = str(float(y_up) - 0.1)       #find the y_lower bound
             current_count = str(current_count)
-            print '%s\t%s\t%s\t%s\t%s' % (x_low, x_up, y_low, y_up, current_count)
+            print '%s\t%s\t%s\t%s\t%s' % (x_low, x_up, y_low, y_up, current_count)   #paste the result
         current_count = count
         current_word = word
 if current_word == word:
