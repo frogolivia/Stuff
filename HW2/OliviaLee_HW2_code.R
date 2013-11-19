@@ -81,7 +81,7 @@ newtemp=temp[sample(1:n,b,replace=FALSE),]
 # Reset simulation seed:
 set.seed(sim_seed)
 # Bootstrap dataset:
-test=rmultinom(1, size = bs.n, prob=rep(1,b)/b)
+test=rmultinom(1, size = n, prob=rep(1,b)/b)
 # Fit lm:
 model=lm(newtemp[,d]~newtemp[,1:(d-1)]-1,data=data.frame(newtemp),weights=test)
 beta=model$coefficients
