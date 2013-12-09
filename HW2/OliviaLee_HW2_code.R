@@ -42,8 +42,9 @@ s_index=ceiling((sim_num-1000)/50)
 r_index=sim_num%%50            
 		# returns a result of of remainder of sim_num/50
 		# for 1:250%%50 returns 1,2,...,49,0,1,2,...,49,0,....
+		# what I exptec for r_index is 1,2,...,49,50,1,2,....,49,50,1,2,.....
 r_index[which(r_index==0)]=50   
-		# change those value of 0 into 50
+		# Thus I change those value of 0 into 50
 #============================== Run the simulation study ==============================#
 
 # Load packages:
@@ -80,7 +81,7 @@ newtemp=temp[sample(1:n,b,replace=FALSE),]
 # Reset simulation seed:
 set.seed(sim_seed)
 # Bootstrap dataset:
-test=rmultinom(1, size = bs.n, prob=rep(1,b)/b)
+test=rmultinom(1, size = n, prob=rep(1,b)/b)
 # Fit lm:
 model=lm(newtemp[,d]~newtemp[,1:(d-1)]-1,data=data.frame(newtemp),weights=test)
 beta=model$coefficients
@@ -105,10 +106,11 @@ write.table(beta,file=outfile,row.name=FALSE)
 import sys
 from math import floor, ceil
 for line in sys.stdin:
-    numbers = map(float, line.split())
-    x = numbers[0] * 10
-    y = numbers[1] * 10
-    word = str(ceil(x) / 10) + '_' + str(ceil(y) / 10)
+    numbers = map(float, line.split())       #split each element by " ", and change into float
+    x = numbers[0] * 10    # since ceil is integer-base, so I multiply x-cor by 10.
+    y = numbers[1] * 10    # do the same thing to y-cor
+    word = str(ceil(x) / 10) + '_' + str(ceil(y) / 10)   #divided the ceiling result by 10 and use
+    							 # "_" to connect x_upper bound and y_upper bound
     print '%s\t%s' % (word, 1)
 
 ###########################
@@ -125,10 +127,10 @@ current_count = 0
 word = None
 
 for line in sys.stdin:
-    line = line.strip()
-    chopped = line.split()
-    word = chopped[0]
-    count = chopped[1]
+    line = line.strip()       #remove leadibg abd trailing whitespace
+    chopped = line.split()    #separate the key and the value
+    word = chopped[0]         #key
+    count = chopped[1]        #value
     try:
         count = int(count)
     except ValueError:
@@ -142,10 +144,10 @@ for line in sys.stdin:
             bound = str.partition(current_word, "_")     ## String split by "_"
             x_up = str(bound[0])
             y_up = str(bound[2])
-            x_low = str(float(x_up) - 0.1)
-            y_low = str(float(y_up) - 0.1)
+            x_low = str(float(x_up) - 0.1)       #find the x_lower bound
+            y_low = str(float(y_up) - 0.1)       #find the y_lower bound
             current_count = str(current_count)
-            print '%s\t%s\t%s\t%s\t%s' % (x_low, x_up, y_low, y_up, current_count)
+            print '%s\t%s\t%s\t%s\t%s' % (x_low, x_up, y_low, y_up, current_count)   #paste the result
         current_count = count
         current_word = word
 if current_word == word:
