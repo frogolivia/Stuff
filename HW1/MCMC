@@ -25,7 +25,7 @@ bayes.logreg = function(m,y,X,beta.0,Sigma.0.inv,niter=10000,burnin=1000,      #
 				if (u>alpha){theta[i,]=theta[i-1,];ac=ac
 					}else {theta[i,]=theta_star;ac=ac+1
 					}
-				if (i%%retune==1){  #100´«retune
+				if (i%%retune==1){  #100Â´Â«retune
 					W=ac/retune ; new.cov=cov(theta[(i-99):i,]);prop.var=W*new.cov+(1-W)*prop.var
 					if (W < 0.5) {prop.var=prop.var/2}
 					print(list(paste("acceptance rate=",W," ; beta1=",theta[i,1]," ; beta2=",theta[i,2],sep=""),prop.var));ac=0
